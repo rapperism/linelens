@@ -60,8 +60,15 @@ export async function initRuntime() {
     ]);
     runtime.app = initializeApp(cfg);
     runtime.aiMod = aiMod;
-    runtime.ai = aiMod.getAI(runtime.app);
 
+    // ORDER MATTERS: App Check must be registered on the app BEFORE getAI().
+    // firebase/ai resolves its "app-check-internal" provider exactly once, in the
+    // AIService constructor, with getImmediate({ optional: true }). If App Check is
+    // not initialized yet, that resolves to null for the whole life of this AI
+    // instance: no getAppCheckToken is ever wired in, the SDK sends no
+    // X-Firebase-AppCheck header, and every cloud call fails
+    // 401 "Firebase App Check token is invalid" while the token exchange itself
+    // succeeds. Do not move getAI() above this block.
     if (cfg.appCheckSiteKey && !looksPlaceholder(cfg.appCheckSiteKey)) {
       try {
         const ac = await import(`${SDK}firebase-app-check.js`);
@@ -74,6 +81,8 @@ export async function initRuntime() {
         runtime.appCheckError = String(err?.message || err);
       }
     }
+
+    runtime.ai = aiMod.getAI(runtime.app);
 
     try {
       const rcMod = await import(`${SDK}firebase-remote-config.js`);
