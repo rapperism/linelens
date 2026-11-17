@@ -5,6 +5,7 @@
       "firebase.json",
       ".firebaserc",
       ".git/**",
+      ".firebase/**",
       ".gitignore",
       "**/.*",
       "**/node_modules/**",
