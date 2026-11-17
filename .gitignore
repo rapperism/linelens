@@ -1,0 +1,6 @@
+.DS_Store
+*.webm
+node_modules/
+
+# live project identifiers — keep them out of the public repo
+firebase-config.js

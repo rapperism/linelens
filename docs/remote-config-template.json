@@ -1,0 +1,21 @@
+{
+  "parameters": {
+    "report_model": {
+      "defaultValue": { "value": "gemini-3.8-flash" },
+      "description": "Cloud model used for shift report aggregation (only the cloud path)."
+    },
+    "fallback_model": {
+      "defaultValue": { "value": "gemini-3.5-flash-lite" },
+      "description": "Cloud model used when the preferred cloud model is unavailable."
+    },
+    "analysis_mode": {
+      "defaultValue": { "value": "prefer_on_device" },
+      "description": "Inference mode for defect photo analysis: prefer_on_device | only_on_device | prefer_in_cloud | only_in_cloud."
+    },
+    "max_records_per_report": {
+      "defaultValue": { "value": "60" },
+      "description": "How many stored defect cards one shift report aggregates."
+    }
+  },
+  "conditions": []
+}

@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LineLens — defect capture that never leaves the line</title>
+    <meta
+      name="description"
+      content="LineLens turns a photo of a defective part into a structured defect card on the device, and only the text into a shift report in the cloud. Built with Firebase AI Logic hybrid inference for the #BuildHybridAI 2026 hackathon."
+    />
+    <meta name="theme-color" content="#0f1720" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="offline-banner" class="offline-banner" role="status" hidden data-i18n="offline.banner"></div>
+
+    <div class="app">
+      <aside class="rail">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect x="2" y="18" width="7" height="12" rx="1.5" fill="currentColor" opacity=".45" />
+            <rect x="12" y="10" width="7" height="20" rx="1.5" fill="currentColor" opacity=".7" />
+            <rect x="22" y="3" width="7" height="27" rx="1.5" fill="currentColor" />
+            <circle cx="25.5" cy="3" r="4" fill="none" stroke="currentColor" stroke-width="2" />
+          </svg>
+          <div>
+            <div class="brand-name">LineLens</div>
+            <p class="brand-tag" data-i18n="brand.tagline"></p>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="LineLens sections">
+          <button class="nav-item is-active" data-view="capture" type="button">
+            <span class="nav-dot"></span><span data-i18n="nav.capture"></span>
+          </button>
+          <button class="nav-item" data-view="log" type="button">
+            <span class="nav-dot"></span><span data-i18n="nav.log"></span>
+            <span class="nav-count" id="nav-log-count">0</span>
+          </button>
+          <button class="nav-item" data-view="report" type="button">
+            <span class="nav-dot"></span><span data-i18n="nav.report"></span>
+          </button>
+        </nav>
+
+        <section class="runtime">
+          <h3 data-i18n="runtime.title"></h3>
+          <dl class="runtime-list">
+            <div class="runtime-row">
+              <dt data-i18n="runtime.firebase"></dt>
+              <dd id="rt-firebase">—</dd>
+            </div>
+            <div class="runtime-row">
+              <dt data-i18n="runtime.appcheck"></dt>
+              <dd id="rt-appcheck">—</dd>
+            </div>
+            <div class="runtime-row">
+              <dt data-i18n="runtime.ondevice"></dt>
+              <dd id="rt-ondevice">—</dd>
+            </div>
+            <div class="runtime-row">
+              <dt data-i18n="runtime.rc"></dt>
+              <dd id="rt-rc">—</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="privacy">
+          <h3 data-i18n="privacy.title"></h3>
+          <p class="privacy-line"><span class="dot device"></span><span data-i18n="privacy.photo"></span></p>
+          <p class="privacy-line"><span class="dot cloud"></span><span data-i18n="privacy.text"></span></p>
+          <p class="privacy-never" data-i18n="privacy.never"></p>
+        </section>
+
+        <div class="rail-foot">
+          <p data-i18n="footer.license"></p>
+          <p class="muted" data-i18n="footer.samples"></p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div class="context">
+            <label class="ctx">
+              <span data-i18n="toolbar.line"></span>
+              <input id="ctx-line" value="2" inputmode="numeric" />
+            </label>
+            <label class="ctx">
+              <span data-i18n="toolbar.station"></span>
+              <select id="ctx-station">
+                <option>Weld cell 3</option>
+                <option>Paint line — final</option>
+                <option>Machining — incoming</option>
+                <option>Assembly — station 7</option>
+              </select>
+            </label>
+            <label class="ctx">
+              <span data-i18n="toolbar.shift"></span>
+              <select id="ctx-shift">
+                <option>A</option>
+                <option>B</option>
+                <option>C</option>
+              </select>
+            </label>
+            <label class="ctx ctx-mode">
+              <span data-i18n="toolbar.mode"></span>
+              <select id="mode">
+                <option value="prefer_on_device" data-i18n="mode.prefer"></option>
+                <option value="only_on_device" data-i18n="mode.onlyDevice"></option>
+                <option value="only_in_cloud" data-i18n="mode.cloud"></option>
+              </select>
+            </label>
+          </div>
+          <div class="top-actions">
+            <span id="demo-pill" class="pill pill-demo" hidden data-i18n="demo.pill" data-i18n-title="demo.pill.title"></span>
+            <button id="lang-toggle" class="btn btn-ghost" data-lang-toggle type="button">한국어</button>
+            <button id="record-btn" class="btn btn-record" type="button" data-i18n-title="btn.record.title">
+              <span class="rec-dot"></span><span data-i18n="btn.record"></span>
+            </button>
+          </div>
+        </header>
+
+        <div class="views">
+          <!-- ── Capture ─────────────────────────────────────────── -->
+          <section id="view-capture" class="view is-active" aria-labelledby="cap-h">
+            <div class="pane">
+              <header class="pane-head">
+                <h1 id="cap-h" data-i18n="capture.title"></h1>
+                <p data-i18n="capture.sub"></p>
+              </header>
+
+              <div class="photo-block">
+                <div class="field-label"><span data-i18n="capture.photo"></span></div>
+                <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Add a defect photo">
+                  <img id="preview" alt="" hidden />
+                  <div id="drop-hint" class="drop-hint">
+                    <svg viewBox="0 0 48 32" aria-hidden="true" class="cam-icon">
+                      <rect x="1" y="6" width="46" height="25" rx="4" fill="none" stroke="currentColor" stroke-width="2" />
+                      <circle cx="24" cy="18.5" r="8" fill="none" stroke="currentColor" stroke-width="2" />
+                      <rect x="17" y="1" width="14" height="6" rx="2" fill="currentColor" />
+                    </svg>
+                    <strong data-i18n="capture.drop"></strong>
+                    <span data-i18n="capture.dropSub"></span>
+                  </div>
+                  <input id="file" type="file" accept="image/jpeg,image/png" hidden />
+                </div>
+                <div class="photo-actions">
+                  <button id="pick-btn" class="btn btn-outline" type="button" data-i18n="capture.browse"></button>
+                  <span class="muted" id="photo-name"></span>
+                </div>
+                <div class="samples">
+                  <span class="samples-label" data-i18n="capture.samples"></span>
+                  <div id="sample-list" class="sample-list"></div>
+                </div>
+              </div>
+
+              <label class="field">
+                <span class="field-label"
+                  ><span data-i18n="capture.memo"></span><em data-i18n="capture.memo.optional"></em></span
+                >
+                <textarea id="memo" rows="3" data-i18n-ph="capture.memo.ph"></textarea>
+                <span class="hint" data-i18n="capture.memo.hint"></span>
+              </label>
+
+              <button id="analyze-btn" class="btn btn-primary btn-lg" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" class="ico">
+                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+                <span data-i18n="capture.analyze"></span>
+              </button>
+              <div id="analyze-status" class="analyze-status" hidden></div>
+            </div>
+
+            <div class="pane">
+              <header class="pane-head">
+                <h2 data-i18n="result.title"></h2>
+                <p data-i18n="result.sub"></p>
+              </header>
+
+              <div id="result-empty" class="empty">
+                <div class="empty-art" aria-hidden="true">
+                  <svg viewBox="0 0 64 64">
+                    <rect x="6" y="14" width="52" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path d="M14 44l12-12 9 9 7-6 8 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                    <circle cx="44" cy="26" r="4" fill="none" stroke="currentColor" stroke-width="2" />
+                  </svg>
+                </div>
+                <p class="empty-title" data-i18n="result.empty"></p>
+                <p class="muted" data-i18n="result.emptyHint"></p>
+              </div>
+
+              <article id="result-card" class="defect-card" hidden>
+                <div class="card-top">
+                  <div>
+                    <div class="eyebrow" data-i18n="result.type"></div>
+                    <h3 id="r-type">—</h3>
+                  </div>
+                  <span id="r-badge" class="badge"></span>
+                </div>
+                <div class="chip-row">
+                  <span id="r-sev" class="sev">—</span>
+                  <span id="r-cat" class="chip">—</span>
+                  <span id="r-conf" class="chip chip-quiet">—</span>
+                </div>
+                <dl class="card-grid">
+                  <div><dt data-i18n="result.part"></dt><dd id="r-part">—</dd></div>
+                  <div><dt data-i18n="result.location"></dt><dd id="r-location">—</dd></div>
+                  <div class="wide"><dt data-i18n="result.cause"></dt><dd id="r-cause">—</dd></div>
+                  <div class="wide"><dt data-i18n="result.action"></dt><dd id="r-action">—</dd></div>
+                </dl>
+                <div class="card-foot">
+                  <span class="foot-item"><span class="foot-k" data-i18n="result.latency"></span><span id="r-latency">—</span></span>
+                  <span class="foot-item"><span class="foot-k" data-i18n="result.model"></span><span id="r-model">—</span></span>
+                </div>
+                <button id="save-btn" class="btn btn-secondary btn-block" type="button" data-i18n="result.save"></button>
+              </article>
+            </div>
+          </section>
+
+          <!-- ── Shift log ───────────────────────────────────────── -->
+          <section id="view-log" class="view" aria-labelledby="log-h">
+            <header class="pane-head wide-head">
+              <div>
+                <h1 id="log-h" data-i18n="log.title"></h1>
+                <p data-i18n="log.sub"></p>
+              </div>
+              <div class="head-actions">
+                <span id="log-count" class="pill pill-quiet">0</span>
+                <button id="clear-log-btn" class="btn btn-ghost btn-sm" type="button" data-i18n="log.clear"></button>
+              </div>
+            </header>
+
+            <div id="log-empty" class="empty">
+              <p class="empty-title" data-i18n="log.empty"></p>
+              <p class="muted" data-i18n="log.emptyHint"></p>
+            </div>
+
+            <div id="log-table-wrap" class="table-wrap" hidden>
+              <table class="log-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th data-i18n="log.col.time"></th>
+                    <th data-i18n="log.col.part"></th>
+                    <th data-i18n="log.col.type"></th>
+                    <th data-i18n="log.col.sev"></th>
+                    <th data-i18n="log.col.path"></th>
+                  </tr>
+                </thead>
+                <tbody id="log-body"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ── Shift report ────────────────────────────────────── -->
+          <section id="view-report" class="view" aria-labelledby="rep-h">
+            <header class="pane-head wide-head">
+              <div>
+                <h1 id="rep-h" data-i18n="report.title"></h1>
+                <p data-i18n="report.sub"></p>
+              </div>
+              <div class="head-actions">
+                <button id="report-generate-btn" class="btn btn-primary" type="button" data-i18n="report.generate"></button>
+              </div>
+            </header>
+
+            <div id="report-empty" class="empty">
+              <p class="empty-title" data-i18n="report.empty"></p>
+            </div>
+
+            <div id="report-body" hidden>
+              <div class="stats">
+                <div class="stat">
+                  <span class="stat-k" data-i18n="report.stat.records"></span>
+                  <span class="stat-v" id="stat-total">0</span>
+                </div>
+                <div class="stat stat-crit">
+                  <span class="stat-k" data-i18n="report.stat.critical"></span>
+                  <span class="stat-v" id="stat-critical">0</span>
+                </div>
+                <div class="stat">
+                  <span class="stat-k" data-i18n="report.stat.profile"></span>
+                  <span class="stat-v stat-v-sm" id="stat-profile">—</span>
+                </div>
+                <div class="stat stat-path">
+                  <span class="stat-k" data-i18n="report.badge"></span>
+                  <span class="stat-v stat-v-sm" id="report-badge">—</span>
+                </div>
+              </div>
+
+              <div class="report-grid">
+                <section class="panel chart-panel">
+                  <header class="panel-head">
+                    <h3 data-i18n="report.pareto"></h3>
+                    <p class="muted" data-i18n="report.pareto.note"></p>
+                  </header>
+                  <div id="pareto" class="pareto"></div>
+                </section>
+
+                <section class="panel narrative">
+                  <div class="narrative-block">
+                    <h4 data-i18n="report.trend"></h4>
+                    <p id="report-trend">—</p>
+                  </div>
+                  <div class="narrative-block">
+                    <h4 data-i18n="report.driver"></h4>
+                    <p id="report-driver">—</p>
+                  </div>
+                  <p id="report-summary" class="summary">—</p>
+                </section>
+              </div>
+
+              <section class="panel eightd-panel">
+                <header class="panel-head">
+                  <h3 data-i18n="report.eightd"></h3>
+                  <p class="muted" data-i18n="report.eightd.note"></p>
+                </header>
+                <div id="eightd" class="eightd"></div>
+              </section>
+            </div>
+            <div id="report-status" class="analyze-status" hidden></div>
+          </section>
+        </div>
+
+        <footer class="waybar">
+          <span class="way device"><span class="way-dot"></span><span data-i18n="privacy.photo"></span></span>
+          <span class="way-line" aria-hidden="true"><svg viewBox="0 0 80 12"><path d="M2 6h70" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 4" fill="none" /><path d="M70 2l6 4-6 4" fill="currentColor" /></svg></span>
+          <span class="way cloud"><span class="way-dot"></span><span data-i18n="privacy.text"></span></span>
+          <span class="way-note" data-i18n="privacy.never"></span>
+        </footer>
+      </main>
+    </div>
+
+    <!-- Recording HUD -->
+    <div id="record-hud" class="record-hud" hidden>
+      <span class="rec-live"><span class="rec-dot"></span><span data-i18n="btn.recording"></span></span>
+      <span id="rec-timer" class="rec-timer">00:00</span>
+      <button id="rec-scenario" class="btn btn-ghost btn-sm" type="button" data-i18n="btn.scenario"></button>
+      <button id="rec-stop" class="btn btn-record btn-sm" type="button" data-i18n="btn.stop"></button>
+      <p class="rec-note" data-i18n="rec.start"></p>
+    </div>
+
+    <!-- Cloud consent: exactly what leaves the device -->
+    <div id="consent" class="modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="consent-h">
+        <h2 id="consent-h" data-i18n="consent.title"></h2>
+        <p data-i18n="consent.body"></p>
+        <div class="consent-facts">
+          <div class="fact fact-zero">
+            <span class="fact-k" data-i18n="consent.images"></span>
+            <span class="fact-v" id="consent-images">0</span>
+          </div>
+          <div class="fact">
+            <span class="fact-k" data-i18n="consent.records"></span>
+            <span class="fact-v" id="consent-records">0</span>
+          </div>
+        </div>
+        <details class="payload">
+          <summary data-i18n="consent.payload"></summary>
+          <pre id="consent-payload"></pre>
+        </details>
+        <div class="modal-actions">
+          <button id="consent-cancel" class="btn btn-ghost" type="button" data-i18n="consent.cancel"></button>
+          <button id="consent-send" class="btn btn-primary" type="button" data-i18n="consent.send"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden role="status"></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
